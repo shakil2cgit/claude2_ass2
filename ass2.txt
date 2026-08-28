@@ -1,0 +1,67 @@
+Part B — Assignment
+From Review Criteria to a Bot Running in CI
+
+Build PR review logic with subagents, prove it catches real defects, then deploy it as a live bot through GitHub Actions. Follow the steps in order.
+
+Step 1: Prepare the target repository
+
+Choose or create a GitHub repository containing real code and a working test suite. Confirm you can open pull requests against it and that the tests run cleanly on a fresh checkout before you add any automation.
+
+Step 2: Write your review rubric
+
+Define in writing what your bot must check and how it should rank findings: must-fix, should-fix, and ignore. Cover at least logic errors, missing tests, security problems and style. A precise rubric is the difference between a useful reviewer and a noise generator.
+
+Step 3: Build a seeded-defect benchmark pull request
+
+Batch 2 rule: deliberately introduce three known defects into a branch — one logic bug, one untested code path, and one security issue such as a hardcoded secret. Write down exactly what and where they are. This is your ground truth and you will score the bot against it.
+
+Step 4: Design the subagent architecture
+
+Sketch how the work splits across subagents: an Explore subagent for context, a Plan subagent to decide what deserves review, and one or more custom subagents for focused checks. For each one, write a sentence explaining why it exists and what would break without it.
+
+Step 5: Build the Explore subagent
+
+Implement the Explore subagent so it inspects the changed files and returns a focused summary of what the pull request actually does, without flooding the main session with raw file contents. Verify the summary is useful enough to review from.
+
+Step 6: Build the review subagents
+
+Implement custom review subagents that take the explored context and produce structured feedback against your Step 2 rubric. Keep each one narrow — a subagent with a single responsibility produces output you can actually verify.
+
+Step 7: Document your context management strategy
+
+Explain how you keep the work inside the context window: what you summarise, what you compact, and what you pass between subagents. Show that you treated context as a limited budget rather than an unlimited inbox.
+
+Step 8: Use test-driven development to lock in behaviour
+
+Write tests that define correct bot behaviour — for example, that it flags the seeded logic bug and does not flag a clean file. Watch them fail, then build until they pass. Submit these tests as part of your work.
+
+Step 9: Score the bot against your benchmark
+
+Run the bot on your seeded-defect pull request and report two numbers: how many of the three seeded defects it caught, and how many findings were false alarms. Then explain in a short paragraph what you would change to improve the weaker number.
+
+Step 10: Refactor legacy code using background sessions
+
+Pick a messy section of the target repo or of your bot and refactor it without changing behaviour, using your tests as the safety net. Run the longer checks as background tasks or parallel sessions and note how that changed your working speed.
+
+Step 11: Deploy through GitHub Actions
+
+Create a workflow that triggers your bot when a pull request is opened, runs the review logic, and posts the results. Handle secrets through the secrets context and set the minimum permissions the job needs. Submit the workflow file.
+
+Step 12: Add auto-fix and triage, then test live and submit
+
+Extend the bot to auto-fix safe failures and triage incoming issues by labelling or prioritising them. State clearly which actions run automatically and which require human approval. Then open a real pull request, let the bot run end to end, and submit: (a) your rubric, (b) your subagent architecture, (c) your context strategy, (d) your TDD tests, (e) your benchmark scores with commentary, (f) your refactoring notes, (g) your workflow file, and (h) screenshots of the bot reviewing the live pull request.
+
+Instructions:
+1. Complete all tasks according to the given requirements and guidelines.
+
+2. Make sure all screenshots are clear, readable, and relevant to the respective practical task (If need).
+
+3. Organize the Google Docs file properly with appropriate headings for each task.
+
+4. Ensure that all links, code, commands, and outputs are properly formatted and accessible.
+
+5. Before submission, review the entire document and confirm that all required tasks and screenshots are included.
+
+6. Make sure the Google Docs sharing permission is set to “Anyone with the link – Viewer” before submitting.
+
+7. Submit the Google Docs link within the assignment submission window.
