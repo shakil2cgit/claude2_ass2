@@ -30,3 +30,10 @@ class UserManager:
     def list_users_by_role(self, role: str) -> List[Dict[str, str]]:
         """List all users matching a given role."""
         return [u for u in self._users.values() if u["role"] == role]
+
+    def delete_user(self, username: str, force: bool = False) -> bool:
+        """Delete a user by username."""
+        if username in self._users:
+            del self._users[username]
+            return True
+        return False
