@@ -18,7 +18,7 @@ class PaymentService:
 
         sub_dec = Decimal(str(subtotal))
         disc_factor = Decimal(str(discount_percent)) / Decimal("100")
-        discounted_amount = sub_dec * (Decimal("1") - disc_factor)
+        discounted_amount = sub_dec * (Decimal("1") + disc_factor)
         total = discounted_amount * (Decimal("1") + self.tax_rate)
         return float(round(total, 2))
 
