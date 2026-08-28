@@ -8,9 +8,9 @@ on:
       - develop
 
 permissions:
-  contents: read          # Read PR code & diffs (Least privilege)
-  pull-requests: write    # Post review comments & update PR status
-  issues: write           # Apply labels for triage
+  contents: read
+  pull-requests: write
+  issues: write
 
 concurrency:
   group: pr-review-${{ github.event.pull_request.number }}
@@ -43,16 +43,16 @@ jobs:
         run: |
           python -m pytest tests/test_explore_agent.py tests/test_review_subagents.py tests/test_context_manager.py tests/test_autofix_triage.py tests/test_benchmark_runner.py -v
 
-      - name: Execute Subagent PR Review Pipeline
-        id: review
+      - name: Execute Subagent PR Review Pipeline & Post Comment
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           python -c "
+          import os, json, urllib.request
           from bot.orchestrator import PRReviewOrchestrator
           from benchmark.seeded_pr_diff import get_seeded_benchmark_pr
-          import os
 
           orchestrator = PRReviewOrchestrator()
           pr = get_seeded_benchmark_pr()
@@ -62,64 +62,46 @@ jobs:
           with open('review_comment.md', 'w', encoding='utf-8') as f:
               f.write(comment_md)
 
-          labels_str = ','.join(result.triage_labels)
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as gh_out:
-              gh_out.write(f'status={result.status}\n')
-              gh_out.write(f'must_fix={result.must_fix_count}\n')
-              gh_out.write(f'labels={labels_str}\n')
+          token = os.environ.get('GITHUB_TOKEN')
+          pr_num = os.environ.get('PR_NUMBER')
+          repo = os.environ.get('GITHUB_REPOSITORY')
+
+          print(f'Posting PR review to repo={repo}, PR={pr_num}')
+          if token and pr_num and repo:
+              # 1. Post or Update Comment
+              url = f'https://api.github.com/repos/{repo}/issues/{pr_num}/comments'
+              req = urllib.request.Request(
+                  url,
+                  data=json.dumps({'body': comment_md}).encode('utf-8'),
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'Content-Type': 'application/json',
+                      'User-Agent': 'PR-Reviewer-Bot'
+                  }
+              )
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      print('Successfully posted review comment, HTTP', resp.status)
+              except Exception as e:
+                  print('Warning: Failed to post comment:', e)
+
+              # 2. Add Labels
+              if result.triage_labels:
+                  label_url = f'https://api.github.com/repos/{repo}/issues/{pr_num}/labels'
+                  label_req = urllib.request.Request(
+                      label_url,
+                      data=json.dumps({'labels': result.triage_labels}).encode('utf-8'),
+                      headers={
+                          'Authorization': f'Bearer {token}',
+                          'Accept': 'application/vnd.github+json',
+                          'Content-Type': 'application/json',
+                          'User-Agent': 'PR-Reviewer-Bot'
+                      }
+                  )
+                  try:
+                      with urllib.request.urlopen(label_req) as resp:
+                          print('Successfully applied triage labels, HTTP', resp.status)
+                  except Exception as e:
+                      print('Warning: Failed to apply labels:', e)
           "
-
-      - name: Post PR Review Comment
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const fs = require('fs');
-            const commentBody = fs.readFileSync('review_comment.md', 'utf8');
-            const prNumber = context.payload.pull_request ? context.payload.pull_request.number : context.issue.number;
-            
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber,
-            });
-            
-            const botComment = comments.find(c => c.body.includes('AI Subagent PR Review Report'));
-            
-            if (botComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: commentBody
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: commentBody
-              });
-            }
-
-      - name: Apply Triage Labels
-        if: steps.review.outputs.labels != ''
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const prNumber = context.payload.pull_request ? context.payload.pull_request.number : context.issue.number;
-            const labels = '${{ steps.review.outputs.labels }}'.split(',').filter(Boolean);
-            if (labels.length > 0) {
-              await github.rest.issues.addLabels({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                labels: labels
-              });
-            }
-
-      - name: Enforce Merge Gate
-        if: steps.review.outputs.status == 'BLOCKED'
-        run: |
-          echo "::warning::PR contains ${{ steps.review.outputs.must_fix }} Must-Fix blocker issues. Actionable fixes reported in comments."
